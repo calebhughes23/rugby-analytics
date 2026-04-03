@@ -43,6 +43,33 @@ db.exec(`
     yellow_cards    INTEGER DEFAULT 0,
     FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS players (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    game_id     INTEGER NOT NULL,
+    team        TEXT NOT NULL,
+    name        TEXT NOT NULL,
+    number      INTEGER,
+    FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS events (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    game_id         INTEGER NOT NULL,
+    match_time      TEXT,
+    half            INTEGER DEFAULT 1,
+    team            TEXT NOT NULL,
+    event_type      TEXT NOT NULL,
+    player_id       INTEGER,
+    player_id_2     INTEGER,
+    field_zone      TEXT,
+    outcome         TEXT,
+    phase           INTEGER,
+    sub_type        TEXT,
+    FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE,
+    FOREIGN KEY (player_id) REFERENCES players(id),
+    FOREIGN KEY (player_id_2) REFERENCES players(id)
+  );
 `);
 
 //Queries
@@ -163,4 +190,93 @@ const getStatsByTeam = db.prepare(`
     ORDER BY g.round ASC, g.date ASC
 `);
 
-module.exports = { saveGame, getAllGames, getGameById, deleteGame, getTeams, getStatsByTeam };
+// ── Player queries ─────────────────────────────────────────────────────
+
+const insertPlayer = db.prepare(`
+  INSERT INTO players (game_id, team, name, number)
+  VALUES (@game_id, @team, @name, @number)
+`);
+
+const getPlayersByGame = db.prepare(`
+  SELECT * FROM players WHERE game_id = ? ORDER BY team, number ASC
+`);
+
+// ── Event queries ──────────────────────────────────────────────────────
+
+const insertEvent = db.prepare(`
+  INSERT INTO events (
+    game_id, match_time, half, team, event_type,
+    player_id, player_id_2, field_zone, outcome, phase, sub_type
+  ) VALUES (
+    @game_id, @match_time, @half, @team, @event_type,
+    @player_id, @player_id_2, @field_zone, @outcome, @phase, @sub_type
+  )
+`);
+
+const getEventsByGame = db.prepare(`
+  SELECT 
+    e.*,
+    p1.name as player_name,
+    p1.number as player_number,
+    p2.name as player_name_2,
+    p2.number as player_number_2
+  FROM events e
+  LEFT JOIN players p1 ON p1.id = e.player_id
+  LEFT JOIN players p2 ON p2.id = e.player_id_2
+  WHERE e.game_id = ?
+  ORDER BY e.id ASC
+`);
+
+const deleteEvent = db.prepare(`
+  DELETE FROM events WHERE id = ?
+`);
+
+const getPlayerStats = db.prepare(`
+  SELECT
+    p.id,
+    p.name,
+    p.number,
+    p.team,
+    COUNT(CASE WHEN e.event_type = 'carry' THEN 1 END)                                    as carries,
+    COUNT(CASE WHEN e.event_type = 'carry' AND e.outcome = 'gainline_made' THEN 1 END)    as gainline_made,
+    COUNT(CASE WHEN e.event_type = 'pass' THEN 1 END)                                     as passes,
+    COUNT(CASE WHEN e.event_type = 'tackle' AND e.outcome = 'made' THEN 1 END)            as tackles_made,
+    COUNT(CASE WHEN e.event_type = 'tackle' AND e.outcome = 'dominant' THEN 1 END)        as tackles_dominant,
+    COUNT(CASE WHEN e.event_type = 'tackle' AND e.outcome = 'missed' THEN 1 END)          as tackles_missed,
+    COUNT(CASE WHEN e.event_type = 'try' THEN 1 END)                                      as tries,
+    COUNT(CASE WHEN e.event_type = 'turnover' THEN 1 END)                                 as turnovers_won,
+    COUNT(CASE WHEN e.event_type = 'penalty' THEN 1 END)                                  as penalties_conceded,
+    COUNT(CASE WHEN e.event_type = 'lineout' THEN 1 END)                                  as lineout_throws
+  FROM players p
+  LEFT JOIN events e ON e.player_id = p.id
+  WHERE p.game_id = ?
+  GROUP BY p.id
+  ORDER BY p.team, p.number ASC
+`);
+
+// Expose db instance for direct queries in server.js
+const updateTeamStats = db.transaction((gameId, teamName, isHome, stats) => {
+  db.prepare('DELETE FROM team_stats WHERE game_id = ? AND team = ?').run(gameId, teamName);
+  insertStats.run({
+    game_id:  gameId,
+    team:     teamName,
+    is_home:  isHome,
+    ...stats
+  });
+});
+
+module.exports = {
+  saveGame,
+  getAllGames,
+  getGameById,
+  deleteGame,
+  getTeams,
+  getStatsByTeam,
+  insertPlayer,
+  getPlayersByGame,
+  insertEvent,
+  getEventsByGame,
+  deleteEvent,
+  getPlayerStats,
+  updateTeamStats,
+};
