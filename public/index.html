@@ -14,6 +14,7 @@
   <div class="nav-brand">Rugby<span>IQ</span></div>
   <button class="nav-tab active" data-page="import">Import Excel</button>
   <button class="nav-tab" data-page="entry">Manual Entry</button>
+  <button class="nav-tab" data-page="tagger">Tagger</button>
   <button class="nav-tab" data-page="teams">Teams</button>
   <button class="nav-tab" data-page="trends">Trends</button>
   <button class="nav-tab" data-page="compare">Compare</button>
@@ -179,6 +180,272 @@
       <button class="btn btn-primary" id="save-btn">Save Game ✓</button>
     </div>
     <div id="save-msg" style="text-align:right;margin-top:8px;font-size:13px;color:var(--accent);display:none">Game saved!</div>
+  </div>
+</div>
+
+<!-- ── Tagger ───────────────────────────────────────────────────────── -->
+<div id="page-tagger" class="page">
+  <div id="tagger-setup" class="container">
+    <div class="page-header">
+      <h2>Match Tagger</h2>
+      <p>Set up the match before tagging</p>
+    </div>
+
+    <!-- Match details -->
+    <div class="card mb-20">
+      <div class="card-title">Match Details</div>
+      <div class="form-row">
+        <div class="form-group"><label>Round</label><input type="text" id="tg-round" placeholder="e.g. R14"></div>
+        <div class="form-group"><label>Date</label><input type="date" id="tg-date"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Home Team</label><input type="text" id="tg-team-a" placeholder="Team A"></div>
+        <div class="form-group"><label>Away Team</label><input type="text" id="tg-team-b" placeholder="Team B"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Home Score</label><input type="number" id="tg-score-a" placeholder="0" min="0"></div>
+        <div class="form-group"><label>Away Score</label><input type="number" id="tg-score-b" placeholder="0" min="0"></div>
+      </div>
+    </div>
+
+    <!-- Teamsheets -->
+    <div class="grid-2" style="gap:20px;margin-bottom:20px">
+      <div class="card">
+        <div class="card-title">Home Teamsheet</div>
+        <div id="squad-a">
+          <!-- rows inserted by JS -->
+        </div>
+        <button class="btn btn-secondary" style="margin-top:8px;width:100%" onclick="addPlayerRow('a')">+ Add Player</button>
+      </div>
+      <div class="card">
+        <div class="card-title">Away Teamsheet</div>
+        <div id="squad-b">
+          <!-- rows inserted by JS -->
+        </div>
+        <button class="btn btn-secondary" style="margin-top:8px;width:100%" onclick="addPlayerRow('b')">+ Add Player</button>
+      </div>
+    </div>
+
+    <div class="flex-end">
+      <button class="btn btn-primary" onclick="startTagging()">Start Tagging →</button>
+    </div>
+  </div>
+
+  <!-- ── Tagging screen (hidden until setup complete) ── -->
+  <div id="tagger-main" style="display:none">
+
+    <!-- Top bar -->
+    <div style="background:var(--card);border-bottom:1px solid var(--border);padding:12px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <div style="font-weight:700;font-size:15px" id="tg-match-title"></div>
+
+      <!-- Half toggle -->
+      <div style="display:flex;gap:4px">
+        <button class="btn btn-secondary" id="half-1-btn" onclick="setHalf(1)" style="padding:6px 12px;font-size:13px">1st Half</button>
+        <button class="btn btn-secondary" id="half-2-btn" onclick="setHalf(2)" style="padding:6px 12px;font-size:13px">2nd Half</button>
+      </div>
+
+      <!-- Match time -->
+      <div style="display:flex;align-items:center;gap:8px">
+        <label style="font-size:12px;color:var(--text-muted)">Match time</label>
+        <input type="text" id="tg-time" placeholder="00:00" style="width:70px;padding:6px 8px;font-size:14px;font-weight:600;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text)">
+      </div>
+
+      <!-- Phase counter -->
+      <div style="display:flex;align-items:center;gap:8px">
+        <label style="font-size:12px;color:var(--text-muted)">Phase</label>
+        <div style="font-size:20px;font-weight:700;min-width:32px;text-align:center" id="phase-display">1</div>
+        <button onclick="resetPhase()" style="font-size:11px;padding:4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg);cursor:pointer;color:var(--text-muted)">Reset</button>
+      </div>
+
+      <!-- Possession -->
+      <div style="display:flex;align-items:center;gap:8px;margin-left:auto">
+        <label style="font-size:12px;color:var(--text-muted)">Possession</label>
+        <button id="poss-btn-a" class="btn btn-primary" onclick="setPossession('a')" style="padding:6px 14px;font-size:13px" id="poss-a"></button>
+        <button id="poss-btn-b" class="btn btn-secondary" onclick="setPossession('b')" style="padding:6px 14px;font-size:13px" id="poss-b"></button>
+      </div>
+
+      <button class="btn btn-secondary" onclick="finishTagging()" style="padding:6px 14px;font-size:13px">Finish & Save</button>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 340px;height:calc(100vh - 120px)">
+
+      <!-- ── Left: event buttons ── -->
+      <div style="padding:16px;overflow-y:auto">
+
+        <div class="grid-3" style="gap:10px;margin-bottom:16px">
+
+          <!-- Carry -->
+          <div class="card" style="padding:14px">
+            <div class="card-title">Carry</div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <button class="tag-btn" onclick="tagEvent('carry','gainline_made')">Gainline Made ✓</button>
+              <button class="tag-btn tag-btn-warn" onclick="tagEvent('carry','gainline_not')">Gainline Not Made ✗</button>
+            </div>
+          </div>
+
+          <!-- Pass -->
+          <div class="card" style="padding:14px">
+            <div class="card-title">Pass</div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <button class="tag-btn" onclick="tagEvent('pass',null)">Pass</button>
+            </div>
+          </div>
+
+          <!-- Tackle -->
+          <div class="card" style="padding:14px">
+            <div class="card-title">Tackle</div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <button class="tag-btn" onclick="tagEvent('tackle','made')">Made</button>
+              <button class="tag-btn" onclick="tagEvent('tackle','dominant')">Dominant</button>
+              <button class="tag-btn tag-btn-warn" onclick="tagEvent('tackle','missed')">Missed</button>
+            </div>
+          </div>
+
+          <!-- Breakdown -->
+          <div class="card" style="padding:14px">
+            <div class="card-title">Breakdown</div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <button class="tag-btn" onclick="tagBreakdown('won_fast')">Won Fast</button>
+              <button class="tag-btn" onclick="tagBreakdown('won_slow')">Won Slow</button>
+              <button class="tag-btn tag-btn-warn" onclick="tagBreakdown('lost')">Lost</button>
+            </div>
+          </div>
+
+          <!-- Kick -->
+          <div class="card" style="padding:14px">
+            <div class="card-title">Kick</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">Type</div>
+            <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px">
+              <button class="tag-btn" onclick="tagKick('contestable')">Contestable (up & under)</button>
+              <button class="tag-btn" onclick="tagKick('uncontestable')">Uncontestable</button>
+              <button class="tag-btn" onclick="tagKick('grubber')">Grubber</button>
+              <button class="tag-btn" onclick="tagKick('to_touch')">To Touch</button>
+              <button class="tag-btn" onclick="tagKick('restart')">Restart Kick</button>
+              <button class="tag-btn" onclick="tagKick('22_dropout')">22 Dropout</button>
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Kick zone (where it lands)</div>
+            <select id="kick-zone" style="width:100%;padding:6px;font-size:13px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);margin-bottom:6px">
+              <option value="own_22">Own 22</option>
+              <option value="own_half">Own Half</option>
+              <option value="opp_half">Opp Half</option>
+              <option value="opp_22">Opp 22</option>
+            </select>
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Outcome</div>
+            <select id="kick-outcome" style="width:100%;padding:6px;font-size:13px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text)">
+              <option value="retained">Retained by kicking team</option>
+              <option value="won_by_receiver">Won by receiving team</option>
+              <option value="touch">Into touch</option>
+              <option value="dead">Dead ball</option>
+            </select>
+          </div>
+
+          <!-- Scrum -->
+          <div class="card" style="padding:14px">
+            <div class="card-title">Scrum</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">Feeding team result</div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <button class="tag-btn" onclick="tagScrum('won_outright')">Won Outright</button>
+              <button class="tag-btn" onclick="tagScrum('won_penalty')">Won Penalty</button>
+              <button class="tag-btn" onclick="tagScrum('won_free_kick')">Won Free Kick</button>
+              <button class="tag-btn tag-btn-warn" onclick="tagScrum('lost_outright')">Lost Outright</button>
+              <button class="tag-btn tag-btn-warn" onclick="tagScrum('lost_penalty')">Lost Penalty</button>
+              <button class="tag-btn tag-btn-warn" onclick="tagScrum('lost_free_kick')">Lost Free Kick</button>
+            </div>
+          </div>
+
+          <!-- Lineout -->
+          <div class="card" style="padding:14px;grid-column:span 2">
+            <div class="card-title">Lineout</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
+              <div>
+                <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Throw Zone</div>
+                <select id="lo-zone" style="width:100%;padding:6px;font-size:13px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text)">
+                  <option value="front">Front</option>
+                  <option value="middle">Middle</option>
+                  <option value="back">Back</option>
+                  <option value="15m+">15m+</option>
+                  <option value="quick">Quick Throw</option>
+                </select>
+              </div>
+              <div>
+                <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Option</div>
+                <select id="lo-option" style="width:100%;padding:6px;font-size:13px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text)">
+                  <option value="off_top">Off The Top</option>
+                  <option value="catch_drive">Catch & Drive</option>
+                  <option value="catch_pass">Catch & Pass</option>
+                  <option value="catch_run">Catch & Run</option>
+                </select>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+              <button class="tag-btn" onclick="tagLineout('won_outright')">Won Outright</button>
+              <button class="tag-btn" onclick="tagLineout('won_penalty')">Won Penalty</button>
+              <button class="tag-btn" onclick="tagLineout('won_overthrow')">Won Overthrow</button>
+              <button class="tag-btn tag-btn-warn" onclick="tagLineout('lost_outright')">Lost Outright</button>
+              <button class="tag-btn tag-btn-warn" onclick="tagLineout('lost_error')">Lost Error</button>
+              <button class="tag-btn tag-btn-warn" onclick="tagLineout('lost_overthrow')">Lost Overthrow</button>
+            </div>
+          </div>
+
+          <!-- Turnover -->
+          <div class="card" style="padding:14px">
+            <div class="card-title">Turnover Won</div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <button class="tag-btn" onclick="tagEvent('turnover',null,'breakdown_steal')">Breakdown Steal</button>
+              <button class="tag-btn" onclick="tagEvent('turnover',null,'interception')">Interception</button>
+              <button class="tag-btn" onclick="tagEvent('turnover',null,'loose_ball')">Loose Ball</button>
+              <button class="tag-btn" onclick="tagEvent('turnover',null,'lineout_steal')">Lineout Steal</button>
+              <button class="tag-btn" onclick="tagEvent('turnover',null,'scrum_steal')">Scrum Steal</button>
+              <button class="tag-btn" onclick="tagEvent('turnover',null,'stripped')">Stripped in Tackle</button>
+              <button class="tag-btn" onclick="tagEvent('turnover',null,'opp_error')">Opposition Error</button>
+            </div>
+          </div>
+
+          <!-- Penalty -->
+          <div class="card" style="padding:14px">
+            <div class="card-title">Penalty Conceded</div>
+            <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px">
+              <button class="tag-btn tag-btn-warn" onclick="tagPenalty('penalty')">Penalty</button>
+              <button class="tag-btn tag-btn-warn" onclick="tagPenalty('free_kick')">Free Kick</button>
+              <button class="tag-btn tag-btn-warn" onclick="tagPenalty('penalty_try')">Penalty Try</button>
+              <button class="tag-btn tag-btn-warn" onclick="tagEvent('yellow_card',null)">Yellow Card</button>
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">Option Taken</div>
+            <select id="pen-option" style="width:100%;padding:6px;font-size:13px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text)">
+              <option value="kick_to_touch">Kick to Touch</option>
+              <option value="kick_at_goal">Kick at Goal</option>
+              <option value="scrum">Scrum</option>
+              <option value="quick_tap">Quick Tap</option>
+              <option value="kick_in_play">Kick in Play</option>
+            </select>
+          </div>
+
+          <!-- Scoring -->
+          <div class="card" style="padding:14px">
+            <div class="card-title">Scoring</div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <button class="tag-btn" onclick="tagEvent('try',null)">Try</button>
+              <button class="tag-btn" onclick="tagEvent('conversion','made')">Conversion Made</button>
+              <button class="tag-btn tag-btn-warn" onclick="tagEvent('conversion','missed')">Conversion Missed</button>
+              <button class="tag-btn" onclick="tagEvent('kick','made','penalty_goal')">Penalty Goal Made</button>
+              <button class="tag-btn tag-btn-warn" onclick="tagEvent('kick','missed','penalty_goal')">Penalty Goal Missed</button>
+              <button class="tag-btn" onclick="tagEvent('22m_entry',null)">22m Entry</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ── Right: event log ── -->
+      <div style="border-left:1px solid var(--border);display:flex;flex-direction:column">
+        <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:13px;font-weight:600">Event Log</span>
+          <button onclick="undoLastEvent()" class="btn btn-secondary" style="font-size:12px;padding:5px 10px">Undo ↩</button>
+        </div>
+        <div id="event-log" style="flex:1;overflow-y:auto;padding:8px"></div>
+      </div>
+
+    </div>
   </div>
 </div>
 

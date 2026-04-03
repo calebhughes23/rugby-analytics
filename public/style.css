@@ -124,3 +124,41 @@ background: var(--card);
 .file-item-status { font-size: 12px; color: var(--text-muted); }
 .file-item-ok { color: var(--accent); font-size: 12px; font-weight: 600; }
 .file-item-err { color: var(--warn); font-size: 12px; font-weight: 600; }
+
+/* ── Tagger ─────────────────────────────────────────────────────────── */
+.tag-btn {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.1s;
+  font-family: inherit;
+}
+.tag-btn:hover { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+.tag-btn:active { transform: scale(0.97); }
+.tag-btn-warn:hover { background: var(--warn-light); border-color: var(--warn); color: var(--warn); }
+
+.squad-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+.squad-row input { flex: 1; }
+.squad-row .num-input { width: 60px; flex: none; }
+
+.event-item { padding: 8px 10px; border-radius: var(--radius-sm); margin-bottom: 4px; font-size: 12px; border: 1px solid var(--border); background: var(--bg); }
+.event-item-team { font-weight: 600; font-size: 11px; margin-bottom: 2px; }
+.event-item-type { color: var(--text); }
+.event-item-detail { color: var(--text-muted); font-size: 11px; }
+.event-item-time { color: var(--text-hint); font-size: 11px; float: right; }
+
+/* Player modal */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; display: flex; align-items: center; justify-content: center; }
+.modal { background: var(--card); border-radius: var(--radius); padding: 20px; min-width: 320px; max-width: 480px; width: 90%; max-height: 80vh; overflow-y: auto; }
+.modal h3 { margin-bottom: 16px; font-size: 16px; }
+.player-btn { width: 100%; padding: 10px 14px; margin-bottom: 6px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 14px; cursor: pointer; text-align: left; font-family: inherit; transition: background 0.1s; }
+.player-btn:hover { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
+.modal-skip { width: 100%; padding: 8px; margin-top: 8px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: none; color: var(--text-muted); font-size: 13px; cursor: pointer; font-family: inherit; }
+.modal-skip:hover { background: var(--bg); }

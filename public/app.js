@@ -55,6 +55,7 @@ document.querySelectorAll('.nav-tab').forEach(tab => {
     if (tab.dataset.page === 'trends')  await renderTrendPage();
     if (tab.dataset.page === 'compare') await renderComparePage();
     if (tab.dataset.page === 'games')   await renderGames();
+    if (tab.dataset.page === 'tagger')  addDefaultRows();
   });
 });
 
@@ -331,17 +332,18 @@ async function renderGames() {
     return;
   }
   const rows = [...games].reverse().map(g => `
-    <tr>
-      <td><strong>${g.round || '–'}</strong></td>
-      <td>${g.date || '–'}</td>
-      <td><strong>${g.team_a}</strong></td>
-      <td style="text-align:center;font-size:16px;font-weight:700">${g.score_a}–${g.score_b}</td>
-      <td><strong>${g.team_b}</strong></td>
-      <td style="text-align:center">${g.a_tries} / ${g.b_tries}</td>
-      <td style="text-align:center">${pct(g.a_possession)}% / ${pct(g.b_possession)}%</td>
-      <td style="text-align:center">${g.a_toWon} / ${g.b_toWon}</td>
-      <td><button class="btn btn-danger" data-id="${g.id}">Delete</button></td>
-    </tr>`).join('');
+  <tr>
+    <td><strong>${g.round || '–'}</strong></td>
+    <td>${g.date || '–'}</td>
+    <td><strong>${g.team_a}</strong></td>
+    <td style="text-align:center;font-size:16px;font-weight:700">${g.score_a}–${g.score_b}</td>
+    <td><strong>${g.team_b}</strong></td>
+    <td style="text-align:center">${pct(g.a_tries)} / ${pct(g.b_tries)}</td>
+    <td style="text-align:center">${pct(g.a_possession)}% / ${pct(g.b_possession)}%</td>
+    <td style="text-align:center">${g.a_toWon} / ${g.b_toWon}</td>
+    <td><a href="/api/games/${g.id}/export" class="btn btn-secondary" style="font-size:12px;padding:5px 10px;text-decoration:none">↓ Excel</a></td>
+    <td><button class="btn btn-danger" data-id="${g.id}">Delete</button></td>
+  </tr>`).join('');
 
   document.getElementById('games-content').innerHTML = `
     <div class="table-wrap"><table>
@@ -351,6 +353,7 @@ async function renderGames() {
         <th style="text-align:center">Tries H/A</th>
         <th style="text-align:center">Possession H/A</th>
         <th style="text-align:center">TOs Won H/A</th>
+        <th>Export</th>
         <th></th>
       </tr></thead>
       <tbody>${rows}</tbody>
@@ -578,6 +581,444 @@ async function renderCompare() {
       scales: { r: { min: 0, max: 100, ticks: { display: false }, pointLabels: { font: { size: 11 } } } }
     }
   });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// TAGGER
+// ═══════════════════════════════════════════════════════════════════════
+
+const taggerState = {
+  gameId:     null,
+  teamA:      '',
+  teamB:      '',
+  possession: 'a',
+  half:       1,
+  phase:      1,
+  players:    [],
+  events:     [],
+};
+
+// ── Setup ──────────────────────────────────────────────────────────────
+
+function addPlayerRow(side) {
+  const container = document.getElementById('squad-' + side);
+  const row = document.createElement('div');
+  row.className = 'squad-row';
+  row.innerHTML = `
+    <input class="num-input" type="number" placeholder="#" min="1" max="23"
+      style="width:55px;padding:7px 8px;font-size:13px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text)">
+    <input type="text" placeholder="Player name"
+      style="flex:1;padding:7px 8px;font-size:13px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text)">
+    <button onclick="this.parentElement.remove()"
+      style="padding:5px 8px;border-radius:4px;border:1px solid var(--border);background:none;color:var(--text-muted);cursor:pointer;font-size:13px">✕</button>
+  `;
+  container.appendChild(row);
+}
+
+function addDefaultRows() {
+  ['a','b'].forEach(side => {
+    const container = document.getElementById('squad-' + side);
+    container.innerHTML = '';
+    for (let i = 1; i <= 15; i++) {
+      const row = document.createElement('div');
+      row.className = 'squad-row';
+      row.innerHTML = `
+        <input class="num-input" type="number" value="${i}" min="1" max="23"
+          style="width:55px;padding:7px 8px;font-size:13px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text)">
+        <input type="text" placeholder="Player ${i}"
+          style="flex:1;padding:7px 8px;font-size:13px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text)">
+        <button onclick="this.parentElement.remove()"
+          style="padding:5px 8px;border-radius:4px;border:1px solid var(--border);background:none;color:var(--text-muted);cursor:pointer;font-size:13px">✕</button>
+      `;
+      container.appendChild(row);
+    }
+  });
+}
+
+function getSquadFromDOM(side, teamName) {
+  const rows = document.querySelectorAll(`#squad-${side} .squad-row`);
+  const players = [];
+  rows.forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const number = parseInt(inputs[0].value) || null;
+    const name   = inputs[1].value.trim();
+    if (name) players.push({ team: teamName, name, number });
+  });
+  return players;
+}
+
+async function startTagging() {
+  const teamA  = document.getElementById('tg-team-a').value.trim();
+  const teamB  = document.getElementById('tg-team-b').value.trim();
+  const round  = document.getElementById('tg-round').value.trim();
+  const date   = document.getElementById('tg-date').value;
+  const scoreA = parseInt(document.getElementById('tg-score-a').value) || 0;
+  const scoreB = parseInt(document.getElementById('tg-score-b').value) || 0;
+
+  if (!teamA || !teamB) { toast('Enter both team names', 'error'); return; }
+
+  // Save the game first to get an ID
+  const result = await API.saveGame({ round, date, teamA, teamB, scoreA, scoreB, a: {}, b: {} });
+  if (!result || result.error) { toast('Failed to create game', 'error'); return; }
+
+  taggerState.gameId     = result.id;
+  taggerState.teamA      = teamA;
+  taggerState.teamB      = teamB;
+  taggerState.possession = 'a';
+  taggerState.half       = 1;
+  taggerState.phase      = 1;
+  taggerState.events     = [];
+
+  // Save players
+  const playersA = getSquadFromDOM('a', teamA);
+  const playersB = getSquadFromDOM('b', teamB);
+  const allPlayers = [...playersA, ...playersB];
+
+  if (allPlayers.length) {
+    const res = await fetch(`/api/games/${result.id}/players`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ players: allPlayers })
+    });
+    const saved = await res.json();
+    // Reload players with their DB ids
+    const players = await fetch(`/api/games/${result.id}/players`).then(r => r.json());
+    taggerState.players = players;
+  }
+
+  // Show tagging screen
+  document.getElementById('tagger-setup').style.display = 'none';
+  document.getElementById('tagger-main').style.display  = 'block';
+  document.getElementById('tg-match-title').textContent = `${teamA} vs ${teamB}${round ? ' — ' + round : ''}`;
+  document.getElementById('poss-btn-a').textContent = teamA;
+  document.getElementById('poss-btn-b').textContent = teamB;
+  setPossession('a');
+  setHalf(1);
+  renderEventLog();
+}
+
+// ── Controls ───────────────────────────────────────────────────────────
+
+function setPossession(side) {
+  taggerState.possession = side;
+  document.getElementById('poss-btn-a').className = side === 'a' ? 'btn btn-primary' : 'btn btn-secondary';
+  document.getElementById('poss-btn-b').className = side === 'b' ? 'btn btn-primary' : 'btn btn-secondary';
+}
+
+function setHalf(half) {
+  taggerState.half = half;
+  document.getElementById('half-1-btn').className = half === 1 ? 'btn btn-primary' : 'btn btn-secondary';
+  document.getElementById('half-2-btn').className = half === 2 ? 'btn btn-primary' : 'btn btn-secondary';
+}
+
+function resetPhase() {
+  taggerState.phase = 1;
+  document.getElementById('phase-display').textContent = 1;
+}
+
+function incrementPhase() {
+  taggerState.phase++;
+  document.getElementById('phase-display').textContent = taggerState.phase;
+}
+
+// Events that reset the phase counter
+const PHASE_RESET_EVENTS = ['scrum','lineout','turnover','kick','try','penalty'];
+const PHASE_INCREMENT_EVENTS = ['carry','pass','breakdown'];
+
+// ── Tagging ────────────────────────────────────────────────────────────
+
+function getMatchTime() {
+  return document.getElementById('tg-time').value || '00:00';
+}
+
+function getPossessingTeam() {
+  return taggerState.possession === 'a' ? taggerState.teamA : taggerState.teamB;
+}
+
+// Show player selection modal then save event
+function tagEvent(eventType, outcome, subType = null) {
+  const team = getPossessingTeam();
+
+  // For tackles, the tackling team is the opposite team
+  const playerTeam = eventType === 'tackle' ? getOpposingTeam() : team;
+
+  showPlayerModal(playerTeam, (playerId) => {
+    let secondPlayerId = null;
+
+    // For carries and tackles optionally pick a second player
+    saveEvent({
+      event_type:  eventType,
+      outcome:     outcome,
+      sub_type:    subType,
+      team:        team,
+      player_id:   playerId,
+      player_id_2: secondPlayerId,
+      match_time:  getMatchTime(),
+      half:        taggerState.half,
+      phase:       taggerState.phase,
+      field_zone:  null,
+    });
+
+    // Phase logic
+    if (PHASE_RESET_EVENTS.includes(eventType)) resetPhase();
+    else if (PHASE_INCREMENT_EVENTS.includes(eventType)) incrementPhase();
+
+    // Auto switch possession on turnover
+    if (eventType === 'turnover') {
+      setPossession(taggerState.possession === 'a' ? 'b' : 'a');
+    }
+  });
+}
+
+function tagLineout(outcome) {
+  const zone   = document.getElementById('lo-zone').value;
+  const option = document.getElementById('lo-option').value;
+  const team   = getPossessingTeam();
+
+  showPlayerModal(team, (playerId) => {
+    saveEvent({
+      event_type:  'lineout',
+      outcome:     outcome,
+      sub_type:    option,
+      team:        team,
+      player_id:   playerId,
+      player_id_2: null,
+      match_time:  getMatchTime(),
+      half:        taggerState.half,
+      phase:       taggerState.phase,
+      field_zone:  zone,
+    });
+    resetPhase();
+    if (outcome.startsWith('lost')) {
+      setPossession(taggerState.possession === 'a' ? 'b' : 'a');
+    }
+  });
+}
+
+function tagPenalty(subType) {
+  const option = document.getElementById('pen-option').value;
+  const team   = getPossessingTeam();
+
+  showPlayerModal(team, (playerId) => {
+    saveEvent({
+      event_type:  'penalty',
+      outcome:     option,
+      sub_type:    subType,
+      team:        team,
+      player_id:   playerId,
+      player_id_2: null,
+      match_time:  getMatchTime(),
+      half:        taggerState.half,
+      phase:       taggerState.phase,
+      field_zone:  null,
+    });
+    resetPhase();
+  });
+}
+
+function tagScrum(outcome) {
+  const team = getPossessingTeam();
+  saveEvent({
+    event_type:  'scrum',
+    outcome:     outcome,
+    sub_type:    null,
+    team:        team,
+    player_id:   null,
+    player_id_2: null,
+    match_time:  getMatchTime(),
+    half:        taggerState.half,
+    phase:       taggerState.phase,
+    field_zone:  null,
+  });
+  resetPhase();
+
+  // If scrum lost, possession switches to opposition
+  if (outcome.startsWith('lost')) {
+    setPossession(taggerState.possession === 'a' ? 'b' : 'a');
+  }
+}
+
+function tagBreakdown(outcome) {
+  const team = getPossessingTeam();
+  saveEvent({
+    event_type:  'breakdown',
+    outcome:     outcome,
+    sub_type:    null,
+    team:        team,
+    player_id:   null,
+    player_id_2: null,
+    match_time:  getMatchTime(),
+    half:        taggerState.half,
+    phase:       taggerState.phase,
+    field_zone:  null,
+  });
+  if (PHASE_INCREMENT_EVENTS.includes('breakdown')) incrementPhase();
+  if (outcome === 'lost') {
+    setPossession(taggerState.possession === 'a' ? 'b' : 'a');
+  }
+}
+
+function tagKick(subType) {
+  const team    = getPossessingTeam();
+  const zone    = document.getElementById('kick-zone').value;
+  const outcome = document.getElementById('kick-outcome').value;
+
+  showPlayerModal(team, (playerId) => {
+    saveEvent({
+      event_type:  'kick',
+      outcome:     outcome,
+      sub_type:    subType,
+      team:        team,
+      player_id:   playerId,
+      player_id_2: null,
+      match_time:  getMatchTime(),
+      half:        taggerState.half,
+      phase:       taggerState.phase,
+      field_zone:  zone,
+    });
+    resetPhase();
+
+    // If receiving team won the ball, switch possession
+    if (outcome === 'won_by_receiver') {
+      setPossession(taggerState.possession === 'a' ? 'b' : 'a');
+    }
+  });
+}
+
+function getOpposingTeam() {
+  return taggerState.possession === 'a' ? taggerState.teamB : taggerState.teamA;
+}
+
+async function saveEvent(event) {
+  const res = await fetch(`/api/games/${taggerState.gameId}/events`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(event)
+  });
+  const result = await res.json();
+  event.id = result.id;
+
+  // Find player name for display
+  const player = taggerState.players.find(p => p.id === event.player_id);
+  event.player_name = player ? `#${player.number} ${player.name}` : null;
+
+  taggerState.events.push(event);
+  renderEventLog();
+}
+
+async function undoLastEvent() {
+  if (!taggerState.events.length) return;
+  const last = taggerState.events[taggerState.events.length - 1];
+  await fetch(`/api/events/${last.id}`, { method: 'DELETE' });
+  taggerState.events.pop();
+
+  // Decrement phase if it was an incrementing event
+  if (PHASE_INCREMENT_EVENTS.includes(last.event_type) && taggerState.phase > 1) {
+    taggerState.phase--;
+    document.getElementById('phase-display').textContent = taggerState.phase;
+  }
+  renderEventLog();
+  toast('Event undone');
+}
+
+// ── Player modal ───────────────────────────────────────────────────────
+
+function showPlayerModal(team, callback) {
+  const players = taggerState.players.filter(p => p.team === team)
+    .sort((a, b) => (a.number || 99) - (b.number || 99));
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal">
+      <h3>Select Player — ${team}</h3>
+      ${players.map(p => `
+        <button class="player-btn" data-id="${p.id}">#${p.number || '–'} ${p.name}</button>
+      `).join('')}
+      <button class="modal-skip">Skip (no player)</button>
+    </div>
+  `;
+
+  overlay.querySelectorAll('.player-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      overlay.remove();
+      callback(parseInt(btn.dataset.id));
+    });
+  });
+
+  overlay.querySelector('.modal-skip').addEventListener('click', () => {
+    overlay.remove();
+    callback(null);
+  });
+
+  // Click outside to cancel
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) overlay.remove();
+  });
+
+  document.body.appendChild(overlay);
+}
+
+// ── Event log ──────────────────────────────────────────────────────────
+
+const EVENT_LABELS = {
+  carry:            'Carry',
+  pass:             'Pass',
+  tackle:           'Tackle',
+  breakdown:        'Breakdown',
+  kick:             'Kick',
+  scrum:            'Scrum',
+  lineout:          'Lineout',
+  turnover:         'Turnover Won',
+  penalty:          'Penalty Conceded',
+  try:              'Try',
+  conversion:       'Conversion',
+  '22m_entry':      '22m Entry',
+  yellow_card:      'Yellow Card',
+  possession_start: 'Possession',
+};
+
+function renderEventLog() {
+  const log = document.getElementById('event-log');
+  if (!taggerState.events.length) {
+    log.innerHTML = '<div style="padding:12px;font-size:13px;color:var(--text-muted)">No events yet</div>';
+    return;
+  }
+  // Show most recent at top
+  log.innerHTML = [...taggerState.events].reverse().map(e => `
+    <div class="event-item">
+      <div class="event-item-time">${e.match_time || ''}</div>
+      <div class="event-item-team">${e.team}</div>
+      <div class="event-item-type">${EVENT_LABELS[e.event_type] || e.event_type}${e.outcome ? ' — ' + e.outcome.replace(/_/g,' ') : ''}</div>
+      ${e.player_name ? `<div class="event-item-detail">${e.player_name}</div>` : ''}
+      ${e.sub_type ? `<div class="event-item-detail">${e.sub_type.replace(/_/g,' ')}</div>` : ''}
+      <div style="font-size:10px;color:var(--text-hint)">Phase ${e.phase} · H${e.half}</div>
+    </div>
+  `).join('');
+}
+
+// ── Finish ─────────────────────────────────────────────────────────────
+
+async function finishTagging() {
+  if (!confirm('Finish tagging and compile stats?')) return;
+
+  const res = await fetch(`/api/games/${taggerState.gameId}/compile`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  });
+  const result = await res.json();
+
+  if (!result.success) { toast('Compile failed', 'error'); return; }
+
+  toast(`Saved! ${taggerState.teamA} ${result.teamA.tries} tries, ${taggerState.teamB.tries} tries`);
+
+  // Reset tagger
+  document.getElementById('tagger-main').style.display  = 'none';
+  document.getElementById('tagger-setup').style.display = 'block';
+  taggerState.gameId  = null;
+  taggerState.events  = [];
+  taggerState.players = [];
+  addDefaultRows();
 }
 
 // ═══════════════════════════════════════════════════════════════════════
