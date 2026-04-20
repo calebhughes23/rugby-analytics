@@ -39,8 +39,8 @@ A full-stack web application for tracking and analysing rugby match statistics.
 ![Trends](screenshots/Team_trends.png)
 
 ### Match Tagger
-![Tagger](screenshots/Match_tagger_events.png)
 ![Tagger](screenshots/Match_tagger_team_list.png)
+![Tagger](screenshots/Match_tagger_events.png)
 
 ### Game Log
 ![Game Log](screenshots/Game_log.png)
