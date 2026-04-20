@@ -619,7 +619,7 @@ function addDefaultRows() {
   ['a','b'].forEach(side => {
     const container = document.getElementById('squad-' + side);
     container.innerHTML = '';
-    for (let i = 1; i <= 15; i++) {
+    for (let i = 1; i <= 23; i++) {
       const row = document.createElement('div');
       row.className = 'squad-row';
       row.innerHTML = `

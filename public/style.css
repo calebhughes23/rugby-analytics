@@ -1,17 +1,20 @@
 
 :root {
---bg: #f5f4f0; --card: #ffffff; --border: rgba(0,0,0,0.12); --border-strong: rgba(0,0,0,0.2);
---text: #1a1a18; --text-muted: #6b6b66; --text-hint: #9b9b95;
---accent: #1d6b4a; --accent-light: #e1f5ee; --accent2: #2563a8; --accent2-light: #dbeafe;
---warn: #c2410c; --warn-light: #fff7ed; --radius: 10px; --radius-sm: 6px;
-}
-@media (prefers-color-scheme: dark) {
-:root {
-    --bg: #1a1a18; --card: #252522; --border: rgba(255,255,255,0.1); --border-strong: rgba(255,255,255,0.2);
-    --text: #e8e6de; --text-muted: #9b9b95; --text-hint: #6b6b66;
-    --accent: #4ade80; --accent-light: #052e16; --accent2: #60a5fa; --accent2-light: #1e3a5f;
-    --warn: #fb923c; --warn-light: #431407;
-}
+  --bg:           #f0f2f5;
+  --card:         #ffffff;
+  --border:       rgba(10,22,40,0.1);
+  --border-strong:rgba(10,22,40,0.25);
+  --text:         #0a1628;
+  --text-muted:   #4a5568;
+  --text-hint:    #8a9ab0;
+  --accent:       #1a56db;
+  --accent-light: #e8f0fe;
+  --accent2:      #0a1628;
+  --accent2-light:#e2e8f0;
+  --warn:         #c53030;
+  --warn-light:   #fff5f5;
+  --radius:       10px;
+  --radius-sm:    6px;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
