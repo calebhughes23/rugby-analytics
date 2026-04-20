@@ -28,4 +28,19 @@ A full-stack web application for tracking and analysing rugby match statistics.
 4. Open http://localhost:3000
 
 ## Screenshots
-<!-- Add screenshots here once you have them -->
+
+### Team Overview
+![Teams Overview](screenshots/team_overview.png)
+
+### Head-to-Head Comparison
+![Compare](screenshots/Team_h2h_compare.png)
+
+### Trends
+![Trends](screenshots/Team_trends.png)
+
+### Match Tagger
+![Tagger](screenshots/Match_tagger_events.png)
+![Tagger](screenshots/Match_tagger_team_list.png)
+
+### Game Log
+![Game Log](screenshots/Game_log.png)
