@@ -592,6 +592,7 @@ const taggerState = {
   teamA:      '',
   teamB:      '',
   possession: 'a',
+  territory:  'a',
   half:       1,
   phase:      1,
   players:    [],
@@ -692,7 +693,10 @@ async function startTagging() {
   document.getElementById('tg-match-title').textContent = `${teamA} vs ${teamB}${round ? ' — ' + round : ''}`;
   document.getElementById('poss-btn-a').textContent = teamA;
   document.getElementById('poss-btn-b').textContent = teamB;
+  document.getElementById('terr-btn-a').textContent = teamA;
+  document.getElementById('terr-btn-b').textContent = teamB;
   setPossession('a');
+  setTerritory('a');
   setHalf(1);
   renderEventLog();
 }
@@ -703,6 +707,41 @@ function setPossession(side) {
   taggerState.possession = side;
   document.getElementById('poss-btn-a').className = side === 'a' ? 'btn btn-primary' : 'btn btn-secondary';
   document.getElementById('poss-btn-b').className = side === 'b' ? 'btn btn-primary' : 'btn btn-secondary';
+
+  // Only log if game is active
+  if (!taggerState.gameId) return;
+  saveEvent({
+    event_type:  'possession_start',
+    outcome:     null,
+    sub_type:    null,
+    team:        side === 'a' ? taggerState.teamA : taggerState.teamB,
+    player_id:   null,
+    player_id_2: null,
+    match_time:  getMatchTime(),
+    half:        taggerState.half,
+    phase:       taggerState.phase,
+    field_zone:  null,
+  });
+}
+
+function setTerritory(side) {
+  taggerState.territory = side;
+  document.getElementById('terr-btn-a').className = side === 'a' ? 'btn btn-primary' : 'btn btn-secondary';
+  document.getElementById('terr-btn-b').className = side === 'b' ? 'btn btn-primary' : 'btn btn-secondary';
+
+  if (!taggerState.gameId) return;
+  saveEvent({
+    event_type:  'territory',
+    outcome:     null,
+    sub_type:    null,
+    team:        side === 'a' ? taggerState.teamA : taggerState.teamB,
+    player_id:   null,
+    player_id_2: null,
+    match_time:  getMatchTime(),
+    half:        taggerState.half,
+    phase:       taggerState.phase,
+    field_zone:  null,
+  });
 }
 
 function setHalf(half) {
@@ -723,8 +762,8 @@ function incrementPhase() {
 }
 
 // Events that reset the phase counter
-const PHASE_RESET_EVENTS = ['scrum','lineout','turnover','kick','try','penalty'];
-const PHASE_INCREMENT_EVENTS = ['carry','pass','breakdown'];
+const PHASE_RESET_EVENTS     = ['scrum','lineout','turnover','kick','try','penalty'];
+const PHASE_INCREMENT_EVENTS = ['carry','breakdown'];
 
 // ── Tagging ────────────────────────────────────────────────────────────
 
@@ -794,7 +833,9 @@ function getPossessingTeam() {
 }
 
 function tagEvent(eventType, outcome, subType = null) {
-  const team = getPossessingTeam();
+  const team    = getPossessingTeam();
+  const oppTeam = taggerState.possession === 'a' ? taggerState.teamB : taggerState.teamA;
+
   saveEvent({
     event_type:  eventType,
     outcome:     outcome,
@@ -807,8 +848,26 @@ function tagEvent(eventType, outcome, subType = null) {
     phase:       taggerState.phase,
     field_zone:  null,
   });
+
+  // Auto log a tackle made for the defending team on every carry
+  if (eventType === 'carry') {
+    saveEvent({
+      event_type:  'tackle',
+      outcome:     'made',
+      sub_type:    null,
+      team:        oppTeam,
+      player_id:   null,
+      player_id_2: null,
+      match_time:  getMatchTime(),
+      half:        taggerState.half,
+      phase:       taggerState.phase,
+      field_zone:  null,
+    });
+  }
+
   if (PHASE_RESET_EVENTS.includes(eventType)) resetPhase();
   else if (PHASE_INCREMENT_EVENTS.includes(eventType)) incrementPhase();
+
   if (eventType === 'turnover') {
     setPossession(taggerState.possession === 'a' ? 'b' : 'a');
   }

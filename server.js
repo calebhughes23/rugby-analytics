@@ -251,6 +251,7 @@ app.get('/api/games/:id/export', (req, res) => {
         kickTypes: {
           contestable:   kicks.filter(e => e.sub_type==='contestable').length,
           uncontestable: kicks.filter(e => e.sub_type==='uncontestable').length,
+          box_kick:      kicks.filter(e => e.sub_type==='box_kick').length,
           grubber:       kicks.filter(e => e.sub_type==='grubber').length,
           to_touch:      kicks.filter(e => e.sub_type==='to_touch').length,
           restart:       kicks.filter(e => e.sub_type==='restart').length,
@@ -649,6 +650,7 @@ app.get('/api/games/:id/export', (req, res) => {
         ['Total Kicks in Play', sA.kicksInPlay,              sB.kicksInPlay,              true],
         ['Contestable',         sA.kickTypes.contestable,    sB.kickTypes.contestable,    false],
         ['Uncontestable',       sA.kickTypes.uncontestable,  sB.kickTypes.uncontestable,  false],
+        ['Box Kick',            sA.kickTypes.box_kick,       sB.kickTypes.box_kick,       false],
         ['Grubber',             sA.kickTypes.grubber,        sB.kickTypes.grubber,        false],
         ['To Touch',            sA.kickTypes.to_touch,       sB.kickTypes.to_touch,       false],
         ['Restart',             sA.kickTypes.restart,        sB.kickTypes.restart,        false],
@@ -822,6 +824,18 @@ app.get('/api/games/:id/player-stats', (req, res) => {
 
 // ── Compile events into team stats ──────────────────────────────────────
 app.post('/api/games/:id/compile', (req, res) => {
+
+  function timeToSeconds(timeStr) {
+    if (!timeStr) return 0;
+    const parts = timeStr.split(':');
+    return parseInt(parts[0]) * 60 + parseInt(parts[1] || 0);
+  }
+
+  function getLastEventTime(events) {
+    const last = events[events.length - 1];
+    return last ? last.match_time : '00:00';
+  }
+
   try {
     const gameId = req.params.id;
     const game   = db.getGameById.get(gameId);
@@ -864,9 +878,37 @@ app.post('/api/games/:id/compile', (req, res) => {
       // Gainline
       const gainlineMade = carries.filter(e => e.outcome === 'gainline_made').length;
 
-      // Possession — based on possession_start events
-      const totalPoss = events.filter(e => e.event_type === 'possession_start').length || 1;
-      const teamPoss  = te.filter(e => e.event_type === 'possession_start').length;
+      // Possession — time-weighted based on possession_start events
+      const possEvents = events.filter(e => e.event_type === 'possession_start');
+      let teamPossSeconds = 0;
+      let totalSeconds    = 0;
+
+      for (let i = 0; i < possEvents.length; i++) {
+        const current = possEvents[i];
+        const next    = possEvents[i + 1];
+        const startSecs = timeToSeconds(current.match_time);
+        const endSecs   = next ? timeToSeconds(next.match_time) : timeToSeconds(getLastEventTime(events));
+
+        const duration = Math.max(0, endSecs - startSecs);
+        totalSeconds  += duration;
+        if (current.team === team) teamPossSeconds += duration;
+      }
+
+      // Territory — same approach with territory events
+      const terrEvents = events.filter(e => e.event_type === 'territory');
+      let teamTerrSeconds = 0;
+      let totalTerrSeconds = 0;
+
+      for (let i = 0; i < terrEvents.length; i++) {
+        const current = terrEvents[i];
+        const next    = terrEvents[i + 1];
+        const startSecs = timeToSeconds(current.match_time);
+        const endSecs   = next ? timeToSeconds(next.match_time) : timeToSeconds(getLastEventTime(events));
+
+        const duration    = Math.max(0, endSecs - startSecs);
+        totalTerrSeconds += duration;
+        if (current.team === team) teamTerrSeconds += duration;
+      }
 
       // Kicks in play (excludes penalty goals and kicks to touch at lineout)
       const kicksInPlay = kicks.filter(e =>
@@ -876,8 +918,8 @@ app.post('/api/games/:id/compile', (req, res) => {
       ).length;
 
       return {
-        possession:    Math.round(teamPoss / totalPoss * 100),
-        territory:     0,
+        possession: totalSeconds    ? Math.round(teamPossSeconds / totalSeconds * 100)    : 0,
+        territory:  totalTerrSeconds ? Math.round(teamTerrSeconds / totalTerrSeconds * 100) : 0,
         time_22:       0,
         attacks:       carries.length + scrums.length + lineouts.length,
         entries_22:    entries.length,

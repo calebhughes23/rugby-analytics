@@ -208,24 +208,6 @@
       </div>
     </div>
 
-    <!-- Teamsheets -->
-    <div class="grid-2" style="gap:20px;margin-bottom:20px">
-      <div class="card">
-        <div class="card-title">Home Teamsheet</div>
-        <div id="squad-a">
-          <!-- rows inserted by JS -->
-        </div>
-        <button class="btn btn-secondary" style="margin-top:8px;width:100%" onclick="addPlayerRow('a')">+ Add Player</button>
-      </div>
-      <div class="card">
-        <div class="card-title">Away Teamsheet</div>
-        <div id="squad-b">
-          <!-- rows inserted by JS -->
-        </div>
-        <button class="btn btn-secondary" style="margin-top:8px;width:100%" onclick="addPlayerRow('b')">+ Add Player</button>
-      </div>
-    </div>
-
     <div class="flex-end">
       <button class="btn btn-primary" onclick="startTagging()">Start Tagging →</button>
     </div>
@@ -266,8 +248,15 @@
       <!-- Possession -->
       <div style="display:flex;align-items:center;gap:8px;margin-left:auto">
         <label style="font-size:12px;color:var(--text-muted)">Possession</label>
-        <button id="poss-btn-a" class="btn btn-primary" onclick="setPossession('a')" style="padding:6px 14px;font-size:13px" id="poss-a"></button>
-        <button id="poss-btn-b" class="btn btn-secondary" onclick="setPossession('b')" style="padding:6px 14px;font-size:13px" id="poss-b"></button>
+        <button id="poss-btn-a" class="btn btn-primary" onclick="setPossession('a')"></button>
+        <button id="poss-btn-b" class="btn btn-secondary" onclick="setPossession('b')"></button>
+      </div>
+
+      <!-- Territory -->
+      <div style="display:flex;align-items:center;gap:8px">
+        <label style="font-size:12px;color:var(--text-muted)">Territory</label>
+        <button id="terr-btn-a" class="btn btn-primary" onclick="setTerritory('a')" id="terr-a"></button>
+        <button id="terr-btn-b" class="btn btn-secondary" onclick="setTerritory('b')" id="terr-b"></button>
       </div>
 
       <button class="btn btn-secondary" onclick="finishTagging()" style="padding:6px 14px;font-size:13px">Finish & Save</button>
@@ -291,9 +280,10 @@
 
           <!-- Pass -->
           <div class="card" style="padding:14px">
-            <div class="card-title">Pass</div>
+            <div class="card-title">22m Entry</div>
             <div style="display:flex;flex-direction:column;gap:6px">
-              <button class="tag-btn" onclick="tagEvent('pass',null)">Pass</button>
+              <button class="tag-btn" onclick="tagEvent('22m_entry','resulted_in_points')">Resulted in Points</button>
+              <button class="tag-btn" onclick="tagEvent('22m_entry','no_points')">No Points</button>
             </div>
           </div>
 
@@ -301,7 +291,6 @@
           <div class="card" style="padding:14px">
             <div class="card-title">Tackle</div>
             <div style="display:flex;flex-direction:column;gap:6px">
-              <button class="tag-btn" onclick="tagEvent('tackle','made')">Made</button>
               <button class="tag-btn" onclick="tagEvent('tackle','dominant')">Dominant</button>
               <button class="tag-btn tag-btn-warn" onclick="tagEvent('tackle','missed')">Missed</button>
             </div>
@@ -324,6 +313,7 @@
             <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px">
               <button class="tag-btn" onclick="tagKick('contestable')">Contestable (up & under)</button>
               <button class="tag-btn" onclick="tagKick('uncontestable')">Uncontestable</button>
+              <button class="tag-btn" onclick="tagKick('box_kick')">Box Kick</button>
               <button class="tag-btn" onclick="tagKick('grubber')">Grubber</button>
               <button class="tag-btn" onclick="tagKick('to_touch')">To Touch</button>
               <button class="tag-btn" onclick="tagKick('restart')">Restart Kick</button>
@@ -403,6 +393,7 @@
               <button class="tag-btn" onclick="tagEvent('turnover',null,'lineout_steal')">Lineout Steal</button>
               <button class="tag-btn" onclick="tagEvent('turnover',null,'scrum_steal')">Scrum Steal</button>
               <button class="tag-btn" onclick="tagEvent('turnover',null,'stripped')">Stripped in Tackle</button>
+              <button class="tag-btn" onclick="tagEvent('turnover',null,'handling_error')">Handling Error</button>
               <button class="tag-btn" onclick="tagEvent('turnover',null,'opp_error')">Opposition Error</button>
             </div>
           </div>
