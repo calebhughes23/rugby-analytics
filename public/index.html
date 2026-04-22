@@ -246,8 +246,14 @@
 
       <!-- Match time -->
       <div style="display:flex;align-items:center;gap:8px">
-        <label style="font-size:12px;color:var(--text-muted)">Match time</label>
-        <input type="text" id="tg-time" placeholder="00:00" style="width:70px;padding:6px 8px;font-size:14px;font-weight:600;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text)">
+        <button id="timer-btn" onclick="toggleTimer()" 
+          style="padding:6px 16px;font-size:13px;font-weight:700;border-radius:4px;border:1.5px solid var(--border);background:var(--card);color:var(--text);cursor:pointer;font-family:inherit;min-width:70px">
+          Start
+        </button>
+        <div id="timer-display" 
+          style="font-family:monospace;font-size:22px;font-weight:700;color:var(--text);min-width:60px;letter-spacing:0.05em">
+          00:00
+        </div>
       </div>
 
       <!-- Phase counter -->

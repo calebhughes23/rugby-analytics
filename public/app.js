@@ -709,6 +709,7 @@ function setHalf(half) {
   taggerState.half = half;
   document.getElementById('half-1-btn').className = half === 1 ? 'btn btn-primary' : 'btn btn-secondary';
   document.getElementById('half-2-btn').className = half === 2 ? 'btn btn-primary' : 'btn btn-secondary';
+  resetTimer();
 }
 
 function resetPhase() {
@@ -727,93 +728,130 @@ const PHASE_INCREMENT_EVENTS = ['carry','pass','breakdown'];
 
 // ── Tagging ────────────────────────────────────────────────────────────
 
+// ── Timer ──────────────────────────────────────────────────────────────
+const timer = {
+  seconds:   0,
+  running:   false,
+  interval:  null,
+};
+
+function toggleTimer() {
+  if (timer.running) {
+    pauseTimer();
+  } else {
+    startTimer();
+  }
+}
+
+function startTimer() {
+  if (timer.running) return;
+  timer.running  = true;
+  timer.interval = setInterval(() => {
+    timer.seconds++;
+    updateTimerDisplay();
+  }, 1000);
+  document.getElementById('timer-btn').textContent = 'Pause';
+  document.getElementById('timer-btn').style.background = 'var(--warn)';
+  document.getElementById('timer-btn').style.color      = 'white';
+  document.getElementById('timer-btn').style.borderColor= 'var(--warn)';
+}
+
+function pauseTimer() {
+  if (!timer.running) return;
+  timer.running = false;
+  clearInterval(timer.interval);
+  timer.interval = null;
+  document.getElementById('timer-btn').textContent      = 'Resume';
+  document.getElementById('timer-btn').style.background = 'var(--card)';
+  document.getElementById('timer-btn').style.color      = 'var(--text)';
+  document.getElementById('timer-btn').style.borderColor= 'var(--border)';
+}
+
+function resetTimer() {
+  pauseTimer();
+  timer.seconds = 0;
+  updateTimerDisplay();
+  document.getElementById('timer-btn').textContent      = 'Start';
+  document.getElementById('timer-btn').style.background = 'var(--card)';
+  document.getElementById('timer-btn').style.color      = 'var(--text)';
+  document.getElementById('timer-btn').style.borderColor= 'var(--border)';
+}
+
+function updateTimerDisplay() {
+  const m = Math.floor(timer.seconds / 60).toString().padStart(2, '0');
+  const s = (timer.seconds % 60).toString().padStart(2, '0');
+  document.getElementById('timer-display').textContent = `${m}:${s}`;
+}
+
 function getMatchTime() {
-  return document.getElementById('tg-time').value || '00:00';
+  const m = Math.floor(timer.seconds / 60).toString().padStart(2, '0');
+  const s = (timer.seconds % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
 }
 
 function getPossessingTeam() {
   return taggerState.possession === 'a' ? taggerState.teamA : taggerState.teamB;
 }
 
-// Show player selection modal then save event
 function tagEvent(eventType, outcome, subType = null) {
   const team = getPossessingTeam();
-
-  // For tackles, the tackling team is the opposite team
-  const playerTeam = eventType === 'tackle' ? getOpposingTeam() : team;
-
-  showPlayerModal(playerTeam, (playerId) => {
-    let secondPlayerId = null;
-
-    // For carries and tackles optionally pick a second player
-    saveEvent({
-      event_type:  eventType,
-      outcome:     outcome,
-      sub_type:    subType,
-      team:        team,
-      player_id:   playerId,
-      player_id_2: secondPlayerId,
-      match_time:  getMatchTime(),
-      half:        taggerState.half,
-      phase:       taggerState.phase,
-      field_zone:  null,
-    });
-
-    // Phase logic
-    if (PHASE_RESET_EVENTS.includes(eventType)) resetPhase();
-    else if (PHASE_INCREMENT_EVENTS.includes(eventType)) incrementPhase();
-
-    // Auto switch possession on turnover
-    if (eventType === 'turnover') {
-      setPossession(taggerState.possession === 'a' ? 'b' : 'a');
-    }
+  saveEvent({
+    event_type:  eventType,
+    outcome:     outcome,
+    sub_type:    subType,
+    team:        team,
+    player_id:   null,
+    player_id_2: null,
+    match_time:  getMatchTime(),
+    half:        taggerState.half,
+    phase:       taggerState.phase,
+    field_zone:  null,
   });
+  if (PHASE_RESET_EVENTS.includes(eventType)) resetPhase();
+  else if (PHASE_INCREMENT_EVENTS.includes(eventType)) incrementPhase();
+  if (eventType === 'turnover') {
+    setPossession(taggerState.possession === 'a' ? 'b' : 'a');
+  }
 }
 
 function tagLineout(outcome) {
   const zone   = document.getElementById('lo-zone').value;
   const option = document.getElementById('lo-option').value;
   const team   = getPossessingTeam();
-
-  showPlayerModal(team, (playerId) => {
-    saveEvent({
-      event_type:  'lineout',
-      outcome:     outcome,
-      sub_type:    option,
-      team:        team,
-      player_id:   playerId,
-      player_id_2: null,
-      match_time:  getMatchTime(),
-      half:        taggerState.half,
-      phase:       taggerState.phase,
-      field_zone:  zone,
-    });
-    resetPhase();
-    if (outcome.startsWith('lost')) {
-      setPossession(taggerState.possession === 'a' ? 'b' : 'a');
-    }
+  saveEvent({
+    event_type:  'lineout',
+    outcome:     outcome,
+    sub_type:    option,
+    team:        team,
+    player_id:   null,
+    player_id_2: null,
+    match_time:  getMatchTime(),
+    half:        taggerState.half,
+    phase:       taggerState.phase,
+    field_zone:  zone,
   });
+  resetPhase();
+  if (outcome.startsWith('lost')) {
+    setPossession(taggerState.possession === 'a' ? 'b' : 'a');
+  }
 }
 
 function tagPenalty(subType) {
   const option = document.getElementById('pen-option').value;
   const team   = getPossessingTeam();
-
-  showPlayerModal(team, (playerId) => {
-    saveEvent({
-      event_type:  'penalty',
-      outcome:     option,
-      sub_type:    subType,
-      team:        team,
-      player_id:   playerId,
-      player_id_2: null,
-      match_time:  getMatchTime(),
-      half:        taggerState.half,
-      phase:       taggerState.phase,
-      field_zone:  null,
-    });
-    resetPhase();
+  saveEvent({
+    event_type:  'penalty',
+    outcome:     option,
+    sub_type:    subType,
+    team:        team,
+    player_id:   null,
+    player_id_2: null,
+    match_time:  getMatchTime(),
+    half:        taggerState.half,
+    phase:       taggerState.phase,
+    field_zone:  null,
   });
+  resetPhase();
 }
 
 function tagScrum(outcome) {
@@ -831,8 +869,6 @@ function tagScrum(outcome) {
     field_zone:  null,
   });
   resetPhase();
-
-  // If scrum lost, possession switches to opposition
   if (outcome.startsWith('lost')) {
     setPossession(taggerState.possession === 'a' ? 'b' : 'a');
   }
@@ -852,37 +888,31 @@ function tagBreakdown(outcome) {
     phase:       taggerState.phase,
     field_zone:  null,
   });
-  if (PHASE_INCREMENT_EVENTS.includes('breakdown')) incrementPhase();
   if (outcome === 'lost') {
     setPossession(taggerState.possession === 'a' ? 'b' : 'a');
   }
 }
 
 function tagKick(subType) {
-  const team    = getPossessingTeam();
   const zone    = document.getElementById('kick-zone').value;
   const outcome = document.getElementById('kick-outcome').value;
-
-  showPlayerModal(team, (playerId) => {
-    saveEvent({
-      event_type:  'kick',
-      outcome:     outcome,
-      sub_type:    subType,
-      team:        team,
-      player_id:   playerId,
-      player_id_2: null,
-      match_time:  getMatchTime(),
-      half:        taggerState.half,
-      phase:       taggerState.phase,
-      field_zone:  zone,
-    });
-    resetPhase();
-
-    // If receiving team won the ball, switch possession
-    if (outcome === 'won_by_receiver') {
-      setPossession(taggerState.possession === 'a' ? 'b' : 'a');
-    }
+  const team    = getPossessingTeam();
+  saveEvent({
+    event_type:  'kick',
+    outcome:     outcome,
+    sub_type:    subType,
+    team:        team,
+    player_id:   null,
+    player_id_2: null,
+    match_time:  getMatchTime(),
+    half:        taggerState.half,
+    phase:       taggerState.phase,
+    field_zone:  zone,
   });
+  resetPhase();
+  if (outcome === 'won_by_receiver') {
+    setPossession(taggerState.possession === 'a' ? 'b' : 'a');
+  }
 }
 
 function getOpposingTeam() {
@@ -919,44 +949,6 @@ async function undoLastEvent() {
   }
   renderEventLog();
   toast('Event undone');
-}
-
-// ── Player modal ───────────────────────────────────────────────────────
-
-function showPlayerModal(team, callback) {
-  const players = taggerState.players.filter(p => p.team === team)
-    .sort((a, b) => (a.number || 99) - (b.number || 99));
-
-  const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay';
-  overlay.innerHTML = `
-    <div class="modal">
-      <h3>Select Player — ${team}</h3>
-      ${players.map(p => `
-        <button class="player-btn" data-id="${p.id}">#${p.number || '–'} ${p.name}</button>
-      `).join('')}
-      <button class="modal-skip">Skip (no player)</button>
-    </div>
-  `;
-
-  overlay.querySelectorAll('.player-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      overlay.remove();
-      callback(parseInt(btn.dataset.id));
-    });
-  });
-
-  overlay.querySelector('.modal-skip').addEventListener('click', () => {
-    overlay.remove();
-    callback(null);
-  });
-
-  // Click outside to cancel
-  overlay.addEventListener('click', e => {
-    if (e.target === overlay) overlay.remove();
-  });
-
-  document.body.appendChild(overlay);
 }
 
 // ── Event log ──────────────────────────────────────────────────────────
@@ -1001,6 +993,7 @@ function renderEventLog() {
 
 async function finishTagging() {
   if (!confirm('Finish tagging and compile stats?')) return;
+  resetTimer();
 
   const res = await fetch(`/api/games/${taggerState.gameId}/compile`, {
     method: 'POST',
@@ -1020,6 +1013,16 @@ async function finishTagging() {
   taggerState.players = [];
   addDefaultRows();
 }
+
+// ── Spacebar to pause/resume timer ────────────────────────────────────
+document.addEventListener('keydown', (e) => {
+  // Only trigger when tagger is active and not typing in an input
+  if (e.code !== 'Space') return;
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+  if (document.getElementById('tagger-main').style.display === 'none') return;
+  e.preventDefault();
+  toggleTimer();
+});
 
 // ═══════════════════════════════════════════════════════════════════════
 // INIT
